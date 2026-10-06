@@ -1,0 +1,74 @@
+{
+  "task": "code-learn",
+  "condition": "skills-auto",
+  "role": "learn",
+  "error": "GraphRecursionError: Recursion limit of 60 reached without hitting a stop condition. You can increase the limit by setting the `recursion_limit` config key.\nFor troubleshooting, visit: https://docs.langchain.com/oss/python/langgraph/errors/GRAPH_RECURSION_LIMIT",
+  "timestamp": "2026-10-06T04:27:23.259043+00:00",
+  "skills_sha256": "9c559de46d906c80f515728f2fd922d23d00e90f81d472383b6437761eb79cbd",
+  "seconds": 331.8,
+  "tokens": {
+    "input": 176671,
+    "output": 2911,
+    "total": 179582
+  },
+  "tool_calls": 0,
+  "subagent_calls": 0,
+  "skills_read": 0,
+  "skills_modified": false,
+  "final_message": "",
+  "score": 0.2,
+  "passed": 2,
+  "total": 10,
+  "checks": [
+    {
+      "name": "visible_suite_passes",
+      "passed": false,
+      "detail": "5 failed, 1 passed in 2.44s"
+    },
+    {
+      "name": "tests_not_modified",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "parse_price_all_formats",
+      "passed": false,
+      "detail": "wrong for: ['$1,299.50', '  12 ', '1299.5', '$1,000,000.00']"
+    },
+    {
+      "name": "other_caller_fixed",
+      "passed": false,
+      "detail": "to_csv_row returned '<AttributeError>'"
+    },
+    {
+      "name": "discount_rounds_half_up",
+      "passed": false,
+      "detail": "wrong for: [('10.05', 10, '9.05'), ('0.05', 50, '0.03'), ('2.665', 0, '2.67')]"
+    },
+    {
+      "name": "low_stock_follows_docstring",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "csv_quoting_follows_docstring",
+      "passed": false,
+      "detail": "to_csv_row returned '<AttributeError>'"
+    },
+    {
+      "name": "rule_type_hints",
+      "passed": false,
+      "detail": "RULE: every public function (name not starting with '_') in the package has type annotations on all parameters and on the return value."
+    },
+    {
+      "name": "rule_regression_tests",
+      "passed": false,
+      "detail": "RULE: add tests/test_regressions.py with one test function per bug you fixed (at least 3); the file must pass."
+    },
+    {
+      "name": "rule_changelog",
+      "passed": false,
+      "detail": "RULE: record each fix in CHANGELOG.md under the heading '## Unreleased' as a bullet '- fix(<function name>): <short description>' (at least 3 bullets)."
+    }
+  ]
+}

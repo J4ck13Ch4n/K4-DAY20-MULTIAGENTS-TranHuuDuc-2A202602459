@@ -8,8 +8,8 @@
 
 - Mô hình: `gpt-4o-mini` qua cổng tương thích OpenAI `https://api.shopaikey.com/v1` (map vào `AZURE_OPENAI_*` theo `model.py` option 1), `LAB_TEMPERATURE=0`, `recursion_limit=60` (riêng lần chạy lại `skills-auto/data-learn` dùng 40 để chặn vòng lặp tốn token).
 - Phiên bản Deep Agents: 0.7.21, hệ điều hành: Linux (WSL), chạy trực tiếp (không Docker).
-- Số lần chạy tác vụ đã dùng: baseline 3 learn + subagents 3 learn + skills-auto 3 learn (+2 chạy lại do lỗi hạ tầng) trước freeze; sau freeze chạy thêm baseline 3 eval + subagents 3 eval + skills-auto 6 all.
-- Commit của tag `freeze`: (điền sau khi tag, xem `git rev-parse freeze`)
+- Số lần chạy tác vụ đã dùng: baseline 3 learn + subagents 3 learn + skills-auto 3 learn (+2 chạy lại do lỗi hạ tầng) trước freeze; sau freeze chạy thêm baseline 3 eval + subagents 3 eval + skills-auto 6 all. Tổng cộng 18 lần chạy chính thức + 4 lần chạy lại/chạy nháp.
+- Commit của tag `freeze`: 56d1ee4 (`git rev-parse freeze`)
 
 ## 2. Giả thuyết (commit TRƯỚC tag `freeze`, Phần 4.0)
 
@@ -70,24 +70,45 @@ Nhận xét: tổng 19 check thất bại gồm 10 kỹ thuật (A/D) và 9 quy 
 
 ## 7. Kết quả so sánh (Phần 4.3, 4.4)
 
-(Tạm thời trước freeze — sẽ dán `report/table.md` và `check_breakdown.py` sau khi chạy eval.)
+`report/table.md` do `python -m lab.compare` sinh ra (khớp `run.json`):
 
 ```text
-(dán bảng ở đây sau Phần 4.3)
+| Task | baseline | subagents | skills-auto |
+|---|---|---|---|
+| code-learn | 5/10 | 5/10 | 2/10 |
+| data-learn | 2/8 | 2/8 | 0/8 |
+| logs-learn | 1/9 | 1/9 | 1/9 |
+| code-eval | 1/11 | 2/11 | 4/11 |
+| data-eval | 0/9 | 2/9 | 1/9 |
+| logs-eval | 1/10 | 0/10 | 1/10 |
+| **Mean score - learning tasks** | 0.29 | 0.29 | 0.10 |
+| **Mean score - evaluation tasks** | 0.06 | 0.13 | 0.19 |
+| **Mean tokens per run** | 145,021 | 73,115 | 133,130 |
+| **Runs that read a skill** | 0/6 | 0/6 | 0/6 |
 ```
 
-Các lần chạy có `error` ở Phần 3.4: `skills-auto/code-learn` `OpenAITimeoutError: Request timed out` (2 lần liên tiếp, tokens 6,244, `tool_calls`=0 do `messages=[]` khi lỗi — hạn chế đã nêu trong pseudocode 03); `skills-auto/data-learn` `GraphRecursionError` (limit 60: 375,312 tokens; limit 40: 184,382 tokens). `skills_modified=false` mọi lần chạy. Cách xử lý: chạy lại 1 lần mỗi task; timeout vẫn lặp lại nên giữ nguyên để phân tích (lỗi hạ tầng, không dùng làm bằng chứng lỗi tác tử); recursion giảm xuống 40 để chặn đốt token và ghi chú trong báo cáo.
+`python scripts/check_breakdown.py` (sau freeze nên hiện cả eval):
+
+```text
+condition     role    technical  house rules  mean tokens  read a skill
+baseline      eval      2/18         0/12         232,922      0/3
+baseline      learn     8/18         0/9           57,120      0/3
+subagents     eval      4/18         0/12         110,073      0/3
+subagents     learn     8/18         0/9           36,156      0/3
+skills-auto   eval      6/18         0/12          72,473      0/3
+skills-auto   learn     3/18         0/9          193,787      0/3
+```
+
+Các lần chạy có `error` (ghi vào `run.json`, không crash chương trình): `baseline/code-eval` và `baseline/data-eval` (`GraphRecursionError` limit 60, tokens 248,488 và 432,208), `subagents/code-eval` (`GraphRecursionError`, 234,745 tokens), `skills-auto/code-learn` và `skills-auto/data-learn` (`GraphRecursionError`, 179,582 và 379,945 tokens). Ở Phần 3.4 (bản sao lưu `results/skills-auto-dev`): `skills-auto/code-learn` `OpenAITimeoutError` (2 lần, 6,244 tokens), `skills-auto/data-learn` `GraphRecursionError` (limit 60: 375,312 tokens; limit 40: 184,382 tokens). Mọi lần chạy đều `skills_modified=false`; `python scripts/verify_freeze.py` báo `OK` (6 runs skills-auto đúng skill đóng băng, chạy sau tag). Cách xử lý: giữ nguyên kết quả lỗi để phân tích (lỗi vòng lặp/timeout là hành vi thật của model/gateway với limit 60), không chạy lại thêm để tránh đốt token (mỗi lần lặp tốn 180-430k tokens); phân biệt rõ lỗi hạ tầng/vòng lặp với lỗi tác tử ở mục 8.
 
 ## 8. Phân tích
 
-(Sẽ hoàn thiện sau eval. Bản nháp: so sánh learn/eval, tách technical vs rule_, giải thích 1 check giúp được và 1 check không, chi phí token/điểm, rò rỉ/quá khớp, nhiễu learn Phần 3.4 vs sau freeze.)
-
-1. (chờ bảng eval)
-2. (chờ breakdown sau freeze)
-3. (chờ vết + skills_read eval)
-4. (chờ mean tokens đủ 3 điều kiện)
-5. Không phát hiện rò rỉ eval marker trong skill (`validate_skill` + `eval_markers()` đã chặn; kiểm tra tay không thấy id tác vụ eval, tên tệp eval, đáp án hay con số cụ thể). Nguy cơ quá khớp: `validate-changelog` cứng "ít nhất 3 bullets", `ensure-csv-format` cứng header — phòng tránh bằng cách không đưa dữ liệu eval vào prompt curator (chỉ role==learn), không sửa tay skill, và đánh giá tổng quát ở mục 6.
-6. Nhiễu: điểm learn cùng bộ skill ở Phần 3.4 (đã sao lưu `results/skills-auto-dev`) so với sau đóng băng — sẽ điền sau khi chạy lại. Hai lần chạy `skills-auto/data-learn` đã cho thấy nhiễu lớn về token (375k vs 184k chỉ do đổi limit) và điểm ổn định ở 0/8 khi lỗi.
+1. So với `baseline`, điều kiện nào cải thiện điểm tác vụ **học**? Điều kiện nào cải thiện điểm tác vụ **đánh giá**? Trên tác vụ học: `subagents` 0.29 bằng `baseline` 0.29 (không cải thiện, đúng H1 vì `subagent_calls=0`); `skills-auto` 0.10 tệ hơn baseline (code-learn 2/10 vs 5/10, data-learn 0/8 vs 2/8) — nhưng cả hai lần chạy tệ đều kèm `GraphRecursionError`, trace rỗng, nên đây là suy giảm do vòng lặp chứ không phải do nội dung skill. Trên tác vụ đánh giá: `subagents` 0.13 và `skills-auto` 0.19 đều cao hơn `baseline` 0.06 (code-eval 1/11→2/11→4/11; data-eval 0/9→2/9→1/9; logs-eval 1/10→0/10→1/10). Không có điều kiện nào "cải thiện học nhưng không cải thiện eval" theo nghĩa quá khớp kinh điển; ngược lại `skills-auto` tệ hơn ở học nhưng tốt hơn ở eval — mẫu hình ngược này cho thấy nhiễu chi phối chứ không phải học chuyển giao. Kết luận khớp H1 (subagents ≈ baseline ở học) một phần, nhưng H2/H3 chỉ đúng một phần (xem câu 6 về nhiễu).
+2. Tách technical vs `rule_`: mọi điều kiện đạt 0/9 (learn) và 0/12 (eval) ở check quy ước — skill sinh ra (nhắm vào `rule_type_hints`, `rule_changelog`, `rule_clean_csv`) không giúp bất kỳ check `rule_` nào, kể cả quy ước cũ đã thấy ở học. Nhóm technical: learn baseline 8/18 = subagents 8/18 > skills-auto 3/18; eval baseline 2/18 < subagents 4/18 < skills-auto 6/18. Quy ước **mới** của eval (`rule_version_bump` ở code-eval, `rule_sorted_keys_format` ở data-eval, `rule_source_line` ở logs-eval) đều fail ở cả 3 điều kiện — skill không thể giúp vì (a) skill chỉ tổng hợp từ `detail` của tác vụ học, không chứa quy ước mới, (b) thực tế `skills_read=0/6` nên skill chưa từng được đọc. Đây là bằng chứng phủ định cho khả năng chuyển giao của skill tự sinh, đúng dự đoán SkillEvolBench.
+3. Một check skill "giúp" và một check skill không giúp (dựa vào vết + `skills_read`): vì `skills_read=0/6` ở mọi điều kiện, không có check nào được skill giúp theo cơ chế đọc-làm theo. Ví dụ `skills-auto/code-eval` đạt `visible_suite_passes`, `billable_blocks_round_up`, `add_slot_no_shared_state` trong khi `baseline/code-eval` fail 3 check này — nhưng `run.json` ghi `skills_read=0`, `subagent_calls=0`, vết không có `read_file skills/...`, nên cải thiện này là nhiễu đường suy luận khác nhau, không phải tác dụng skill. Ngược lại `rule_type_hints` fail ở cả 6/6 lần chạy code (learn+eval, mọi điều kiện) dù skill `check-type-annotations` tồn tại và khớp đúng quy tắc — vì skill không được đọc (`skills_read=0`), tác tử không bao giờ áp dụng; vết `logs-learn` sạch cũng không có dòng đọc skill nào dù `SKILLS_NOTE` yêu cầu đọc đầu tiên. Kết luận: failure mode là "không đọc", không phải "đọc nhưng làm sai".
+4. Chi phí: mean tokens/run (cả learn+eval): baseline 145,021 > skills-auto 133,130 > subagents 73,115. Hiệu quả điểm eval trên mỗi 1M token: baseline 0.06/0.145M≈0.41, subagents 0.13/0.073M≈1.78 (tốt nhất), skills-auto 0.19/0.133M≈1.43. Đa tác tử KHÔNG đáng chi phí theo nghĩa lý thuyết vì `subagent_calls=0` — chênh lệch token hoàn toàn do nhiễu (baseline data-eval 432k và code-eval 248k do vòng lặp; subagents data-eval chỉ 76k vì thoát lặp sớm). Không thể khẳng định subagents rẻ hơn; chỉ có thể nói trong thí nghiệm này chi phí do số bước lặp của model quyết định, không phải do kiến trúc.
+5. Có dấu hiệu rò rỉ dữ liệu hoặc quá khớp nào trong skill sinh ra không? Không rò rỉ: `validate_skill` chặn eval marker, kiểm tra tay 3 skill không chứa id tác vụ eval (`code-eval`, `data-eval`, `logs-eval`), tên tệp eval, đáp án hay con số cụ thể; header CSV và tên `CHANGELOG.md` là quy ước Acme (được phép theo 05_skill_quality). Dấu hiệu quá khớp nhẹ: `validate-changelog` cứng "ít nhất 3 bullets", `ensure-csv-format` cứng header — nếu eval đổi số fix/schema sẽ sai; nhưng vì `skills_read=0` nên quá khớp chưa kịp gây hại. Phòng tránh: curator chỉ đọc `role==learn`, prompt cấm nêu id/tên tệp/đáp án, `validate_skill` kiểm tra marker lúc chạy, không sửa tay skill, đóng băng bằng tag `freeze` và `verify_freeze.py` OK.
+6. Nhiễu: cùng bộ skill đóng băng, điểm học Phần 3.4 (sao lưu `results/skills-auto-dev`) vs sau đóng băng (`results/skills-auto`): code-learn 1/10 (timeout) → 2/10 (recursion) chênh +1 check (+0.10); data-learn 0/8 → 0/8 (0); logs-learn 1/9 → 1/9 (0). Token cùng task dao động 6k→179k (code) và 184k→379k (data) chỉ do lỗi/limit khác nhau. Chênh lệch eval giữa các điều kiện cũng chỉ 1-3 check/task (baseline→skills-auto eval +0.13 ≈ +1 check/task), nằm trong dải nhiễu ±1 check của cùng một cấu hình. Do đó mọi chênh lệch trong bảng mục 7 đều không đáng tin cậy thống kê; kết luận chỉ ở mức định tính (skill không được đọc, rule mới không đạt, vòng lặp tốn token).
 
 ## 9. Hạn chế và tính hợp lệ
 
@@ -98,10 +119,10 @@ Các lần chạy có `error` ở Phần 3.4: `skills-auto/code-learn` `OpenAITi
 
 ## 10. Kết luận
 
-(Chờ số eval; tối đa 5 câu, chỉ khẳng định điều số liệu hỗ trợ, kèm 1 đề xuất cải tiến.)
+Với `gpt-4o-mini`, cả `subagents` và `skills-auto` đều không tạo cải thiện đáng tin cậy: mọi check quy ước Acme đạt 0/21 và mọi skill đều `skills_read=0`. Chênh lệch điểm eval (+0.07/+0.13) nằm trong dải nhiễu ±1 check của cùng cấu hình và đi kèm 5 lần `GraphRecursionError` tốn 180-430k tokens. Đề xuất tiếp theo: giảm `recursion_limit` xuống 40 cho mọi điều kiện và lặp mỗi ô ít nhất 3 lần để ước lượng phương sai trước khi kết luận về skill hay subagent.
 
 ## Phụ lục
 
-- Lệnh đã chạy (theo thứ tự): `pip install -e .`, `pytest tests/test_01_provided.py`, `python -c "from lab.model import make_model; ..."`, `python scripts/tour.py`, `pytest tests/`, `python -m lab.runner --condition baseline --tasks data-learn`, `python -m lab.runner --condition baseline --tasks code-learn logs-learn`, `python -m lab.runner --condition subagents --tasks learn`, `python -m lab.curator`, `python -m lab.runner --condition skills-auto --tasks learn`, rerun 2 task lỗi, `python scripts/check_breakdown.py`.
-- Thử thách mở rộng (nếu có): chưa chọn — đề xuất 6e (lặp để đo nhiễu) nếu còn ngân sách, hoặc 6b (vòng tiến hóa thứ hai) để quan sát skill bloat.
-- Ghi chú khác: `.env` đã chuẩn hóa từ `CUSTOM_*` sang `AZURE_OPENAI_*` (Option 1 cổng tương thích OpenAI) để khớp `model.py` mà không sửa code có sẵn; backup ở `.env.bak`.
+- Lệnh đã chạy (theo thứ tự): `pip install -e .`, `pytest tests/test_01_provided.py`, `python -c "from lab.model import make_model; ..."`, `python scripts/tour.py`, `pytest tests/`, `python -m lab.runner --condition baseline --tasks data-learn`, `python -m lab.runner --condition baseline --tasks code-learn logs-learn`, `python -m lab.runner --condition subagents --tasks learn`, `python -m lab.curator`, `python -m lab.runner --condition skills-auto --tasks learn`, chạy lại 2 task lỗi (code-learn mặc định, data-learn `--recursion-limit 40`), `python scripts/check_breakdown.py`, `git commit -m "hypotheses"`, `mv results/skills-auto results/skills-auto-dev`, `git commit --allow-empty -m "freeze skills" && git tag freeze`, `python -m lab.runner --condition baseline --tasks eval`, `python -m lab.runner --condition subagents --tasks eval`, `python -m lab.runner --condition skills-auto --tasks all`, `python scripts/verify_freeze.py`, `python -m lab.compare > report/table.md`, `python scripts/check_breakdown.py`.
+- Thử thách mở rộng (nếu có): không thực hiện (ngân sách token đã vượt 2M do vòng lặp; để dành cho 6e lặp đo nhiễu trong tương lai).
+- Ghi chú khác: `.env` đã chuẩn hóa từ `CUSTOM_*` sang `AZURE_OPENAI_*` (Option 1 cổng tương thích OpenAI) để khớp `model.py` mà không sửa code có sẵn; backup ở `.env.bak`. Hạn chế `run_task` tối thiểu: khi `agent.invoke` ném lỗi, `messages=[]` nên `trace.md` rỗng và `tool_calls=0` dù đã tốn hàng trăm nghìn token — số token vẫn đúng nhờ `UsageMetadataCallbackHandler`.
