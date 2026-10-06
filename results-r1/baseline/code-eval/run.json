@@ -1,23 +1,23 @@
 {
   "task": "code-eval",
-  "condition": "subagents",
+  "condition": "baseline",
   "role": "eval",
   "error": "GraphRecursionError: Recursion limit of 60 reached without hitting a stop condition. You can increase the limit by setting the `recursion_limit` config key.\nFor troubleshooting, visit: https://docs.langchain.com/oss/python/langgraph/errors/GRAPH_RECURSION_LIMIT",
-  "timestamp": "2026-10-06T05:15:47.607065+00:00",
+  "timestamp": "2026-10-06T05:20:34.636393+00:00",
   "skills_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-  "seconds": 165.2,
+  "seconds": 162.8,
   "tokens": {
-    "input": 219627,
-    "output": 3948,
-    "total": 223575
+    "input": 235981,
+    "output": 1717,
+    "total": 237698
   },
-  "tool_calls": 57,
+  "tool_calls": 40,
   "subagent_calls": 0,
   "skills_read": 0,
   "skills_modified": false,
   "final_message": "",
-  "score": 0.18181818181818182,
-  "passed": 2,
+  "score": 0.09090909090909091,
+  "passed": 1,
   "total": 11,
   "checks": [
     {
@@ -42,7 +42,7 @@
     },
     {
       "name": "billable_blocks_round_up",
-      "passed": true,
+      "passed": false,
       "detail": ""
     },
     {

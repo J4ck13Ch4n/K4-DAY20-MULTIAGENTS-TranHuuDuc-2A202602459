@@ -73,7 +73,7 @@ def _count_skills_read(calls: list) -> int:
     return len(seen)
 
 
-def run_task(task_id: str, condition: str, results_dir="results", model=None, recursion_limit: int = 60) -> dict:
+def run_task(task_id: str, condition: str, results_dir="results", model=None, recursion_limit: int = 1000) -> dict:
     """Chạy MỘT tác vụ dưới MỘT điều kiện, chấm điểm, ghi kết quả, và trả về bản ghi (record).
 
     Ghi vào: <results_dir>/<condition>/<task_id>/run.json và trace.md  (trace.md = render_trace(messages)).
@@ -115,21 +115,37 @@ def run_task(task_id: str, condition: str, results_dir="results", model=None, re
         agent = build_agent(sandbox, mode=cfg["mode"], use_skills=(skills_dir is not None), model=model)
         usage = UsageMetadataCallbackHandler()
         t0 = time.time()
+        messages: list = []
+        final = ""
+        last_state = None
         try:
-            result = agent.invoke(
+            # Dùng stream để giữ vết ngay cả khi chạm recursion limit (pseudocode 03, điểm 8).
+            stream = agent.stream(
                 {"messages": [{"role": "user", "content": task.instruction}]},
                 config={"callbacks": [usage], "recursion_limit": recursion_limit},
+                stream_mode="values",
             )
-            messages = result.get("messages", []) if isinstance(result, dict) else []
+            for state in stream:
+                last_state = state
+            if isinstance(last_state, dict):
+                messages = last_state.get("messages", []) or []
             if messages:
                 last = messages[-1]
                 final = last.content if isinstance(last.content, str) else str(last.content)
-            else:
-                final = ""
         except Exception as exc:  # noqa: BLE001
             record["error"] = f"{type(exc).__name__}: {exc}"
-            messages = []
-            final = ""
+            # Giữ vết đến bước cuối cùng nhận được trước lỗi (thay vì vứt bỏ).
+            try:
+                if isinstance(last_state, dict):
+                    messages = last_state.get("messages", []) or []
+            except Exception:  # noqa: BLE001
+                messages = []
+            if messages and not final:
+                try:
+                    last = messages[-1]
+                    final = last.content if isinstance(last.content, str) else str(last.content)
+                except Exception:  # noqa: BLE001
+                    final = ""
         record["seconds"] = round(time.time() - t0, 1)
 
         # Tokens: cộng dồn mọi lần gọi LLM kể cả subagent
