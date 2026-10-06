@@ -4,11 +4,10 @@ Pseudo-code: guides/pseudocode/04_curator.md
 Kiểm tra:    pytest tests/test_04_curator.py
 Chạy thật:   python -m lab.curator
 """
-import json
 import re
 from pathlib import Path
 
-from .tasks import ROOT, eval_markers   # có sẵn: định danh của tác vụ đánh giá, tính lúc chạy
+from .tasks import eval_markers   # có sẵn: định danh của tác vụ đánh giá, tính lúc chạy
 
 # ---- CÓ SẴN, KHÔNG SỬA: kiểm tra và tách khối skill (phần dễ sai và liên quan bảo mật) ----------------
 SAFE_NAME = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
@@ -69,92 +68,7 @@ def curate_skills(results_dir="results", source_condition="baseline", out_dir=No
     model mặc định: make_model() (lab.model).
     Trả về: danh sách đường dẫn SKILL.md đã ghi.
     """
-    from .model import make_model
-
-    if out_dir is None:
-        out_dir = ROOT / "skills" / "auto"
-    out_dir = Path(out_dir)
-    results_dir = Path(results_dir)
-
-    runs: list[dict] = []
-    pattern = sorted((results_dir / source_condition).glob("*/run.json")) if (results_dir / source_condition).exists() else []
-    for run_file in pattern:
-        try:
-            r = json.loads(run_file.read_text(encoding="utf-8"))
-        except Exception:  # noqa: BLE001
-            continue
-        if r.get("role") != "learn":
-            continue
-        trace_file = run_file.parent / "trace.md"
-        try:
-            trace = trace_file.read_text(encoding="utf-8") if trace_file.exists() else ""
-        except Exception:  # noqa: BLE001
-            trace = ""
-        trace_tail = trace[-6000:]
-        failed = [(c.get("name", ""), c.get("detail", "")) for c in r.get("checks", []) if not c.get("passed")]
-        runs.append({"task": r.get("task", run_file.parent.name), "failed": failed, "trace": trace_tail})
-
-    has_failure = any(run["failed"] for run in runs)
-    if not has_failure:
-        print("Warning: no failed checks in learning tasks, skipping curator LLM call.")
-        return []
-
-    run_sections = []
-    for run in runs:
-        if not run["failed"]:
-            continue
-        lines = [f"Task: {run['task']}"]
-        lines.append("Failed checks (name and reviewer feedback):")
-        for name, detail in run["failed"]:
-            lines.append(f"- {name}: {detail}")
-        lines.append("Trace (tail):")
-        lines.append(run["trace"] if run["trace"] else "(no trace)")
-        run_sections.append("\n".join(lines))
-    runs_text = "\n\n".join(run_sections)
-
-    prompt = (
-        "You write SKILLs for a coding and data-analysis agent.\n"
-        "Below are failed checks (name and reviewer feedback) and execution traces from runs.\n"
-        f"Find common PROCEDURAL mistakes (not specific answers) and write at most {max_skills} short skills\n"
-        "that help avoid those mistakes on NEW tasks of the same kind.\n"
-        "\n"
-        "Rules:\n"
-        "- Skills must be general: no task id, no task-specific file names, no answers or numbers.\n"
-        "- Each skill has YAML frontmatter with `name` (lowercase, hyphens) and `description` (one sentence: WHEN to use),\n"
-        "  then at most 40 lines of imperative instructions (a checklist works well).\n"
-        "- Exact output format, character for character:\n"
-        "=== SKILL: <name> ===\n"
-        "---\n"
-        "name: <name>\n"
-        "description: <when to use>\n"
-        "---\n"
-        "<content>\n"
-        "=== END ===\n"
-        "\n"
-        f"{runs_text}\n"
-    )
-
-    if model is None:
-        model = make_model()
-    reply = model.invoke(prompt).content
-
-    written: list[Path] = []
-    for name, text in parse_skill_blocks(reply):
-        if len(written) >= max_skills:
-            break
-        if validate_skill(text, expected_name=name):
-            continue
-        skill_dir = out_dir / name
-        # Bảo mật: bảo đảm đường dẫn ghi nằm trong out_dir (chống traversal dù validate đã chặn)
-        target = skill_dir / "SKILL.md"
-        try:
-            target.resolve().relative_to(out_dir.resolve())
-        except Exception:  # noqa: BLE001
-            continue
-        skill_dir.mkdir(parents=True, exist_ok=True)
-        target.write_text(text.strip() + "\n", encoding="utf-8")
-        written.append(target)
-    return written
+    raise NotImplementedError("TODO: cài đặt curate_skills (xem guides/pseudocode/04_curator.md)")
 
 
 if __name__ == "__main__":

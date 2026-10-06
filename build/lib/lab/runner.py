@@ -6,15 +6,10 @@ Chạy thật:   python -m lab.runner --condition baseline --tasks learn
 """
 import argparse
 import json
-import shutil
-import tempfile
-import time
-from datetime import datetime, timezone
 from pathlib import Path
 
 from langchain_core.messages import AIMessage, ToolMessage
 
-from .agent import build_agent
 from .grading import grade                                                      # có sẵn
 from .tasks import ROOT, get_task, hash_dir, list_tasks, prepare_sandbox         # có sẵn
 
@@ -51,28 +46,6 @@ def render_trace(messages) -> str:
     return "\n\n".join(parts)
 
 
-def _count_skills_read(calls: list) -> int:
-    """Đếm số skill KHÁC NHAU đã đọc qua tool read_file có file_path chứa 'skills/'."""
-    seen: set[str] = set()
-    for c in calls:
-        if c.get("name") != "read_file":
-            continue
-        args = c.get("args", {}) or {}
-        fp = str(args.get("file_path", ""))
-        if "skills/" not in fp:
-            continue
-        # Lấy tên thư mục ngay sau "skills/"
-        idx = fp.find("skills/")
-        rest = fp[idx + len("skills/"):]
-        rest = rest.lstrip("/")
-        if not rest:
-            continue
-        skill_name = rest.split("/")[0]
-        if skill_name:
-            seen.add(skill_name)
-    return len(seen)
-
-
 def run_task(task_id: str, condition: str, results_dir="results", model=None, recursion_limit: int = 60) -> dict:
     """Chạy MỘT tác vụ dưới MỘT điều kiện, chấm điểm, ghi kết quả, và trả về bản ghi (record).
 
@@ -92,82 +65,7 @@ def run_task(task_id: str, condition: str, results_dir="results", model=None, re
     Lỗi khi chạy tác tử KHÔNG được làm chương trình dừng: ghi vào `error` và vẫn chấm điểm.
     Sandbox là thư mục tạm NGOÀI kho mã nguồn và phải được xóa sau khi chạy.
     """
-    from langchain_core.callbacks import UsageMetadataCallbackHandler
-
-    cfg = CONDITIONS[condition]
-    task = get_task(task_id)
-    skills_dir = (ROOT / cfg["skills_dir"]) if cfg["skills_dir"] else None
-    out = Path(results_dir) / condition / task_id
-    out.mkdir(parents=True, exist_ok=True)
-    sandbox = Path(tempfile.mkdtemp(prefix="lab-sandbox-"))
-    record: dict = {
-        "task": task_id,
-        "condition": condition,
-        "role": task.role,
-        "error": None,
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-    }
-    try:
-        prepare_sandbox(task, sandbox, skills_dir)
-        hash_before = hash_dir(sandbox / "skills")
-        record["skills_sha256"] = hash_before
-
-        agent = build_agent(sandbox, mode=cfg["mode"], use_skills=(skills_dir is not None), model=model)
-        usage = UsageMetadataCallbackHandler()
-        t0 = time.time()
-        try:
-            result = agent.invoke(
-                {"messages": [{"role": "user", "content": task.instruction}]},
-                config={"callbacks": [usage], "recursion_limit": recursion_limit},
-            )
-            messages = result.get("messages", []) if isinstance(result, dict) else []
-            if messages:
-                last = messages[-1]
-                final = last.content if isinstance(last.content, str) else str(last.content)
-            else:
-                final = ""
-        except Exception as exc:  # noqa: BLE001
-            record["error"] = f"{type(exc).__name__}: {exc}"
-            messages = []
-            final = ""
-        record["seconds"] = round(time.time() - t0, 1)
-
-        # Tokens: cộng dồn mọi lần gọi LLM kể cả subagent
-        total_in = 0
-        total_out = 0
-        total = 0
-        try:
-            for meta in usage.usage_metadata.values():
-                total_in += int(meta.get("input_tokens", 0) or 0)
-                total_out += int(meta.get("output_tokens", 0) or 0)
-                total += int(meta.get("total_tokens", 0) or 0)
-        except Exception:  # noqa: BLE001
-            pass
-        record["tokens"] = {"input": total_in, "output": total_out, "total": total}
-
-        # Đếm tool calls ở luồng chính
-        calls: list = []
-        for m in messages:
-            if isinstance(m, AIMessage):
-                for tc in (m.tool_calls or []):
-                    calls.append(tc)
-        record["tool_calls"] = len(calls)
-        record["subagent_calls"] = sum(1 for c in calls if c.get("name") == "task")
-        record["skills_read"] = _count_skills_read(calls)
-        record["skills_modified"] = (hash_dir(sandbox / "skills") != hash_before)
-        record["final_message"] = final
-
-        g = grade(task, sandbox / "workspace")
-        record["score"] = g.get("score", 0.0)
-        record["passed"] = g.get("passed", 0)
-        record["total"] = g.get("total", 0)
-        record["checks"] = g.get("checks", [])
-        (out / "trace.md").write_text(render_trace(messages), encoding="utf-8")
-    finally:
-        shutil.rmtree(sandbox, ignore_errors=True)
-
-    (out / "run.json").write_text(json.dumps(record, indent=2, ensure_ascii=False), encoding="utf-8")
-    return record
+    raise NotImplementedError("TODO 1: cài đặt run_task (xem guides/pseudocode/03_runner.md)")
 
 
 def main(argv=None):
